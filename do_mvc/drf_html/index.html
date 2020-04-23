@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TodoMVC</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="css/todoMVC.css">
+    <script type="text/javascript" src="js/vue-2.5.16.js"></script>
+    <script type="text/javascript" src="js/axios.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header class="header">todos</header>
+        <div class="content">
+            <span class="icon-down el-icon-arrow-down" v-show='todoLists.length>0' @click='selectAllTodos'>﹀</span>
+            <input type="text" class="todos_add" name="add" placeholder="What needs to be done?" @keyup.enter='addTodo($event.target)'>
+            <ul class="content_todoLists">
+                <li v-for='todo,index in todoLists' class="content_todoList" @mouseover='todo.isActive=true' @mouseleave='todo.isActive=false'>
+                    <input type="checkbox" class="checkBox" v-model='todo.ischecked' @click='editCheck(todo, index)'>
+                    <div class="content_todoList_main" @dblclick="toEdit(todo)" v-show="!todo.isEditing" :class="{deleted:todo.isChecked}">{{ todo.contents }}</div>
+                    <input type="text" class="content_todoList_main main_input" v-model="todo.contents" v-show="todo.isEditing" @keyup.enter="editTodo(todo)">
+                    <span style="color: red; font-size: 16px;" v-show="todo.isActive" @click="deleteTodo(todo, index)">delete</span>
+                </li>
+            </ul>
+            <div class="data"> 
+                <div class="data_times" v-show='times === 0'>
+                    <span>{{ times }}</span> item left
+                </div>
+                <div class="data_times" v-show='times > 0'>
+                    <span>{{ times }}</span> item left
+                </div>
+                <div class="data_status">
+                    <a href="#" v-for="(item, index) in dataStatus" @click="switchStatus(index)">{{ item }}</a>
+                </div>
+                <div class="data_clearTodos" @click="clearTodos" v-show="times<todoLists.length">
+                    <a href="#">clear completed</a>
+                </div>
+            </div>
+        
+        </div>
+    </div>
+
+<script type="text/javascript">
+    var vue = new Vue({
+        el: '#app',
+        data() {
+            return {
+                todoLists: [],
+                todo_checked_list: [],
+                todo_Active_list: [],
+                todo_All_list: [],
+                dataStatus: ["All", "Active", "Completed"],
+            }
+        },
+        mounted(){
+            
+            axios.get('http://127.0.0.1:8000/todos/').then(res=>{
+                // 获取的数据是 res.data
+                this.todoLists = res.data
+                this.todo_All_list = res.data
+            })
+
+        },
+        computed: {
+            times() {
+                let todoArr = this.todoLists
+                let times = 0
+                for (let i = 0; i < todoArr.length; i++){
+                    if (todoArr[i].ischecked === false){
+                        times++
+                    }
+                }
+                return times
+            }
+        },
+        methods: {
+            selectAllTodos() {
+                this.todoLists.map(todo=>todo.ischecked = todo.ischecked?false:true)
+            },
+            editCheck(obj, index) {
+                console.log(obj.ischecked)
+                this.todo_All_list[index].ischecked = obj.ischecked
+            },
+            addTodo(e) {
+                var contents = e.value
+                if (contents === ""){
+                    return
+                }
+                axios.post('http://127.0.0.1:8000/todos/', {
+                    'contents': contents,
+                }).then(res=>{
+                    
+                    this.todoLists.push(res.data)
+                    // this.todo_All_list.push(res.data)
+
+                })
+                e.value = ''
+            },
+            toEdit(obj) {
+                obj.isEditing = true
+            },
+            editTodo(obj) {
+                obj.isEditing = false
+                axios.put('http://127.0.0.1:8000/todo/' + obj.id + '/', 
+                {
+                    'contents': obj.contents,
+                }).then(res=>{
+                    console.log(res.data)
+                })
+
+            },
+            deleteTodo(obj, index) {
+
+                let c = 0
+
+                let flag = true
+                for (let i=0; i<this.todoLists.length;i++) {
+                    if (this.todoLists[i].ischecked==false){
+                        flag = false
+                    }
+                }
+                axios.delete('http://127.0.0.1:8000/todo/' + obj.id + '/').then(res=>{
+                    if(flag){
+                        for(let i=0; i<this.todoLists.length; i++){
+                            if(this.todoLists[i].id==obj.id) {
+                                index = i
+                                break
+                            }
+                        }
+                        this.todoLists.splice(index, 1)
+                        for(let j=0; j<this.todo_All_list.length;j++){
+                            if(this.todo_All_list[j].id==obj.id){
+                                c=j
+                                break
+                            }
+                        }
+                        this.todo_All_list.splice(c, 1)
+                    }else{
+                        for(let j=0; j<this.todo_All_list.length;j++){
+                            if(this.todo_All_list[j].id==obj.id){
+                                c=j
+                                break
+                            }
+                        }
+                        this.todo_All_list.splice(c, 1)
+                    }
+                })
+            },
+            switchStatus(index) {
+                if (this.dataStatus[index] === 'Active'){
+                    let todo_active = []
+                    for (let i=0; i<this.todo_All_list.length;i++){
+                        if (this.todo_All_list[i].ischecked==false){
+                            todo_active.push(this.todo_All_list[i])
+                        }
+                    }
+                    this.todoLists = todo_active
+                    console.log(this.todoLists)
+                }else if (this.dataStatus[index] === 'Completed'){
+                    let todo_complete = []
+                    for (let i=0; i<this.todo_All_list.length;i++){
+                        if (this.todo_All_list[i].ischecked==true){
+                            todo_complete.push(this.todo_All_list[i])
+                        }
+                    }
+                    this.todoLists = todo_complete
+                }else if (this.dataStatus[index] === 'All'){
+                    this.todoLists = this.todo_All_list
+                }
+            },
+            clearTodos() {
+                let id_list = []
+                // let index_list = []
+                let count = 0
+                // let todoDels = this.todoLists
+
+                let flag = true
+                for (let i=0; i<this.todoLists.length;i++) {
+                    if (this.todoLists[i].ischecked==false){
+                        flag = false
+                    }
+                }
+
+                if(flag) {
+                    this.todoLists = this.todo_All_list
+                }
+
+
+                
+                for (let i=0; i<this.todoLists.length;i++) {
+                    if (this.todoLists[i].ischecked==true){
+                        id_list.push(this.todoLists[i].id)
+                        count++
+                    }
+                }
+
+                // for(let x=0; x<count, x++){
+                //     for (let y=0; y<todoDels.length; y++){
+                //         if (todoDels[y].ischecked==true) {
+                //             todoDels[y].ischecked==false
+                //             index_list.push(y)
+                //             break
+                //         }
+                //     }
+                // }
+
+
+
+                // console.log(a)
+                console.log(count)
+                axios.post('http://127.0.0.1:8000/todo/dels/', {
+                    'id_list': id_list,
+                }).then(res=>{
+                    
+                    console.log(res.data)
+                    for(let i=0; i<count; i++){
+                        for(let j=0; j<this.todoLists.length; j++){
+                            if (this.todoLists[j].ischecked==true){
+                                this.todoLists.splice(j, 1)
+                                break
+                            }
+                        }
+                    }
+                    // this.todoLists.splice(a, count)
+                    // this.todoLists = this.todo_All_list
+
+                })
+            },
+
+        }
+
+    })
+</script>
+</body>
+</html>
